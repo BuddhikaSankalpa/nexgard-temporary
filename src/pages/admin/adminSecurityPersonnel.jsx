@@ -1,66 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { FaUserShield, FaUserPlus, FaTimes, FaLock } from "react-icons/fa";
 import { MdOutlineLocalPhone } from "react-icons/md";
-import Loader from "../../components/loader"; 
+import { useDemoData } from '../../demoContext';
 
 export default function AdminSecurityPersonnel() {
-  const [users, setUsers] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { personnel: users, updateCollection } = useDemoData();
+  const [isVerified, setIsVerified] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
   
   // States needed for the edit modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  // Security Verification States
-  const [isVerified, setIsVerified] = useState(false);
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'Security Officer', isBlocked: false });
 
-  // Retrieve all users from the backend
-  async function fetchUsers() {
-    try {
-      const response = await axios.get(import.meta.env.VITE_BACKEND_URL + "/users/all");
-      setUsers(response.data);
-    } catch (err) {
-      toast.error("Failed to load personnel data.");
-      console.log(err);
-    } finally {
-      setIsLoading(false);
+  function handleAuthSubmit(event) {
+    event.preventDefault();
+    if (authEmail.trim().toLowerCase() === 'admin@gmail.com' && authPassword === '123') {
+      setIsVerified(true);
+      setAuthPassword('');
+      toast.success('Access Granted');
+    } else {
+      toast.error('Access Denied: Invalid credentials.');
     }
   }
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Security Login Handler
-  function handleAuthSubmit(e) {
-    e.preventDefault();
-    if (authEmail === 'admin@gmail.com' && authPassword === '123') {
-      toast.success("Access Granted");
-      setIsVerified(true);
-    } else {
-      toast.error("Access Denied: Invalid credentials.");
-    }
+  function handleAddUser(event) {
+    event.preventDefault();
+    if (users.some(user => user.email === newUser.email)) return toast.error('Email already exists.');
+    updateCollection('personnel', previous => [...previous, { ...newUser, _id: crypto.randomUUID(), isAdmin: newUser.role === 'System Admin' }]);
+    setIsAddModalOpen(false);
+    setNewUser({ firstName: '', lastName: '', email: '', phone: '', role: 'Security Officer', isBlocked: false });
+    toast.success('Personnel registered successfully!');
   }
 
   // Remove (delete) a user
-  async function handleRemoveUser(id) {
+  function handleRemoveUser(id) {
     if (window.confirm("Are you sure you want to remove this operator/admin?")) {
-      try {
-        setIsLoading(true);
-        await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/users/delete/${id}`);
-        toast.success("Personnel removed successfully!");
-        // Remove from the list and update state
-        setUsers(users.filter(user => user._id !== id));
-      } catch (err) {
-        toast.error(err.response?.data?.message || "Failed to remove user.");
-      } finally {
-        setIsLoading(false);
-      }
+      updateCollection('personnel', previous => previous.filter(user => user._id !== id));
+      toast.success("Personnel removed successfully!");
     }
   }
 
@@ -70,56 +51,28 @@ export default function AdminSecurityPersonnel() {
     setIsEditModalOpen(true);
   }
 
-  // Save the modified data to the backend
-  async function handleUpdateUser(e) {
+  // Save changes to the local frontend data.
+  function handleUpdateUser(e) {
     e.preventDefault();
-    try {
-      setIsLoading(true);
-      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/users/update/${selectedUser._id}`, selectedUser);
-      toast.success("Personnel updated successfully!");
-      setIsEditModalOpen(false);
-      fetchUsers(); // Refresh data
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to update user.");
-    } finally {
-      setIsLoading(false);
-    }
+    updateCollection('personnel', previous => previous.map(user => user._id === selectedUser._id ? selectedUser : user));
+    toast.success("Personnel updated successfully!");
+    setIsEditModalOpen(false);
   }
 
-  // Security Login Screen UI
   if (!isVerified) {
     return (
       <div className="p-8 w-full min-h-screen bg-[#090D14] text-slate-300 flex items-center justify-center relative overflow-hidden font-sans">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:40px_40px] opacity-20 pointer-events-none"></div>
-
         <div className="bg-[#111826] border border-slate-800 rounded-2xl w-full max-w-md p-8 shadow-2xl relative z-10 text-center">
           <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-5 shadow-[0_0_20px_rgba(59,130,246,0.1)]">
             <FaLock size={24} />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Security Clearance Required</h2>
           <p className="text-slate-400 text-sm mb-6">Please enter Head Security Officer credentials to unlock Personnel Profiles.</p>
-
           <form onSubmit={handleAuthSubmit} className="space-y-4">
-            <input
-              type="email"
-              placeholder="Email Address"
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-[#090D14] text-white rounded-xl border border-slate-700 outline-none focus:border-blue-500 transition text-sm"
-              required
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-[#090D14] text-white rounded-xl border border-slate-700 outline-none focus:border-blue-500 transition text-sm"
-              required
-            />
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md uppercase text-xs tracking-wider"
-            >
+            <input type="email" placeholder="Email Address" aria-label="Email Address" autoComplete="off" value={authEmail} onChange={event => setAuthEmail(event.target.value)} className="w-full px-4 py-3 bg-[#090D14] text-white rounded-xl border border-slate-700 outline-none focus:border-blue-500 transition text-sm" required />
+            <input type="password" placeholder="Password" aria-label="Password" autoComplete="off" value={authPassword} onChange={event => setAuthPassword(event.target.value)} className="w-full px-4 py-3 bg-[#090D14] text-white rounded-xl border border-slate-700 outline-none focus:border-blue-500 transition text-sm" required />
+            <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md uppercase text-xs tracking-wider">
               Verify Credentials
             </button>
           </form>
@@ -142,20 +95,18 @@ export default function AdminSecurityPersonnel() {
             <p className="text-slate-400 mt-1">Manage system admin access and all registered personnel profiles.</p>
           </div>
           
-          <Link 
-              to="/register" 
+          <button 
+              onClick={() => setIsAddModalOpen(true)}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2.5 rounded-lg font-bold hover:from-blue-500 hover:to-indigo-500 transition duration-300 shadow-[0_4px_15px_rgba(59,130,246,0.3)] hover:shadow-[0_4px_25px_rgba(59,130,246,0.5)] flex items-center gap-2 tracking-wide"
             >
               <FaUserPlus size={18} />
               <span>REGISTER PERSONNEL</span>
-            </Link>
+            </button>
         </div>
 
         <div className="bg-[#111826] rounded-xl shadow-lg border border-slate-800 overflow-hidden">
           
-          {isLoading ? (
-            <div className="flex justify-center items-center py-20"><Loader /></div>
-          ) : users.length === 0 ? (
+          {users.length === 0 ? (
             <div className="text-center py-20 text-slate-500 font-bold uppercase tracking-widest">
               No Personnel Found
             </div>
@@ -231,6 +182,32 @@ export default function AdminSecurityPersonnel() {
           )}
         </div>
       </div>
+
+      {isAddModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111826] border border-slate-700/60 rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-white mb-4 border-b border-slate-800 pb-2">Register Personnel</h2>
+            <form onSubmit={handleAddUser} className="space-y-4">
+              {[['firstName', 'First Name'], ['lastName', 'Last Name'], ['email', 'Email Address'], ['phone', 'Contact Number']].map(([name, label]) => (
+                <div key={name}>
+                  <label className="text-xs font-bold text-slate-400 uppercase">{label}</label>
+                  <input type={name === 'email' ? 'email' : 'text'} value={newUser[name]} onChange={event => setNewUser(previous => ({ ...previous, [name]: event.target.value }))} className="w-full mt-1 px-4 py-2 bg-slate-800/50 border border-slate-700 text-white rounded-lg outline-none focus:border-blue-500 transition" required />
+                </div>
+              ))}
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">System Role</label>
+                <select value={newUser.role} onChange={event => setNewUser(previous => ({ ...previous, role: event.target.value }))} className="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg">
+                  <option>Main Security Officer</option><option>Security Officer</option><option>Field Operator</option><option>System Admin</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 bg-slate-800 text-slate-400 font-bold rounded-lg">Cancel</button>
+                <button type="submit" className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-lg">Register Personnel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* EDIT MODAL POPUP */}
       {isEditModalOpen && selectedUser && (

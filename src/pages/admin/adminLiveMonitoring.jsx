@@ -1,47 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { MdOutlineSensors } from "react-icons/md";
 import { FaTemperatureHigh, FaWind, FaVolumeUp } from "react-icons/fa";
-import { io } from 'socket.io-client'; 
-
-const envUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api";
-const socketUrl = envUrl.replace(/\/api\/?$/, ''); 
-const socket = io(socketUrl, { transports: ['websocket'] });
+const sensorData = [
+  { time: '09:00', temp: 25.2, airQuality: 42, noise: 36 },
+  { time: '09:05', temp: 25.5, airQuality: 44, noise: 40 },
+  { time: '09:10', temp: 25.4, airQuality: 41, noise: 38 },
+  { time: '09:15', temp: 25.8, airQuality: 46, noise: 43 },
+  { time: '09:20', temp: 26.1, airQuality: 48, noise: 42 },
+  { time: '09:25', temp: 25.9, airQuality: 45, noise: 39 },
+  { time: '09:30', temp: 26.2, airQuality: 49, noise: 44 },
+  { time: '09:35', temp: 26.0, airQuality: 47, noise: 41 },
+  { time: '09:40', temp: 25.7, airQuality: 43, noise: 38 },
+  { time: '09:45', temp: 26.0, airQuality: 45, noise: 42 },
+];
 
 export default function AdminLiveMonitoring() {
   
-  const [sensorData, setSensorData] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const isConnected = true;
   const [activeMetric, setActiveMetric] = useState('all'); 
-
-  useEffect(() => {
-    socket.on('connect', () => setIsConnected(true));
-    socket.on('disconnect', () => setIsConnected(false));
-
-    socket.on('live-sensor-data', (incomingData) => {
-      const now = new Date();
-      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      
-      const newDataPoint = {
-        time: timeString,
-        temp: incomingData.temp,
-        airQuality: incomingData.airQuality,
-        noise: incomingData.noise 
-      };
-
-      setSensorData((prevData) => {
-        const updatedData = [...prevData, newDataPoint];
-        if (updatedData.length > 15) return updatedData.slice(updatedData.length - 15);
-        return updatedData;
-      });
-    });
-
-    return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('live-sensor-data');
-    };
-  }, []);
 
   return (
     <div className="p-8 w-full min-h-screen bg-[#090D14] text-slate-300 relative overflow-hidden font-sans">

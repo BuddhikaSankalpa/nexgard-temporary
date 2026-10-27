@@ -1,126 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios'; 
+import { useState } from 'react';
 import { toast } from 'react-hot-toast'; // Notifications
 import { IoSettingsSharp, IoSave } from "react-icons/io5";
 // Added missing icons for the Emergency Directory (FaFireExtinguisher, FaUsers)
 import { FaUserCog, FaShieldAlt, FaUserShield, FaExclamationTriangle, FaFireExtinguisher, FaUsers } from "react-icons/fa";
 // Added missing icons for the Emergency Directory (MdOutlineLocationOn, MdSensors)
-import { MdOutlineSensors, MdContactPhone, MdLocalHospital, MdOutlineLocationOn, MdSensors } from "react-icons/md"; 
+import { MdContactPhone, MdLocalHospital, MdOutlineLocationOn, MdSensors } from "react-icons/md"; 
+import { useDemoData } from '../../demoContext';
 
 export default function AdminSettings() {
   const [activeTab, setActiveTab] = useState('profile'); 
-  const [autoAlarm, setAutoAlarm] = useState(true);
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  
-  // Profile Data States
-  const [adminId, setAdminId] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [adminPhone, setAdminPhone] = useState('Loading...');
-  
-  // Password States
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { settings, updateSettings, updateCollection, resetData } = useDemoData();
+  const [firstName, setFirstName] = useState(settings.firstName);
+  const [lastName, setLastName] = useState(settings.lastName);
+  const email = settings.email;
+  const [adminPhone, setAdminPhone] = useState(settings.phone);
 
   // Confirmation Modal State
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const envUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api";
-
-  // Fetch logged-in admin data on component mount
-  useEffect(() => {
-    const fetchAdminData = async () => {
-      try {
-        const response = await axios.get(`${envUrl}/users/admins`);
-        
-        if (response.data && response.data.length > 0) {
-          
-          // 1. Get the token from LocalStorage
-          const token = localStorage.getItem('token'); 
-
-          if (token) {
-            // 2. Decode the token to get the logged-in user's email
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const loggedInEmail = payload.email;
-
-            // 3. Find the currently logged-in admin from the fetched admin list
-            const currentAdmin = response.data.find(admin => admin.email === loggedInEmail);
-
-            if (currentAdmin) {
-              // Set the exact details for the logged-in user
-              setAdminId(currentAdmin._id);
-              setFirstName(currentAdmin.firstName);
-              setLastName(currentAdmin.lastName);
-              setEmail(currentAdmin.email);
-              setAdminPhone(currentAdmin.phone); 
-            } else {
-              // Fallback if the specific admin is not found
-              setAdminPhone(response.data[0].phone); 
-            }
-          } else {
-            // Fallback if no token is found
-            setAdminPhone(response.data[0].phone); 
-          }
-
-        } else {
-          setAdminPhone("Not Found");
-        }
-      } catch (error) {
-        console.error("Failed to fetch admin data", error);
-        setAdminPhone("Error");
-      }
-    };
-
-    fetchAdminData();
-  }, [envUrl]);
-
-  // Handle clicking the "SAVE CHANGES" button
   const handleSaveClick = () => {
-    // Only validate passwords if the user is trying to change them
-    if (newPassword || confirmPassword) {
-      if (newPassword !== confirmPassword) {
-        toast.error("Passwords do not match!");
-        return;
-      }
-      if (newPassword.length < 6) {
-        toast.error("Password must be at least 6 characters long.");
-        return;
-      }
-    }
-    
-    // Open confirmation modal
+    if (!firstName.trim() || !lastName.trim() || !adminPhone.trim()) return toast.error('Complete all profile fields.');
     setShowConfirmModal(true);
   };
 
-  // Execute the actual API update to save profile data
-  const handleConfirmSave = async () => {
-    try {
-      const updatePayload = {
-        firstName,
-        lastName,
-        phone: adminPhone,
-      };
-
-      // Only send password if it has been filled out
-      if (newPassword) {
-        updatePayload.password = newPassword;
-      }
-
-      await axios.put(`${envUrl}/users/update/${adminId}`, updatePayload);
-      
-      toast.success("Profile updated successfully!");
-      setShowConfirmModal(false);
-      
-      // Clear password fields after successful update
-      setNewPassword('');
-      setConfirmPassword('');
-      
-    } catch (error) {
-      console.error("Failed to update profile", error);
-      toast.error(error.response?.data?.message || "Failed to save changes.");
-      setShowConfirmModal(false);
-    }
+  const handleConfirmSave = () => {
+    updateSettings({ firstName: firstName.trim(), lastName: lastName.trim(), phone: adminPhone.trim() });
+    updateCollection('personnel', previous => previous.map(person => person.email === email ? { ...person, firstName: firstName.trim(), lastName: lastName.trim(), phone: adminPhone.trim() } : person));
+    toast.success("Profile updated successfully!");
+    setShowConfirmModal(false);
   };
 
   return (
@@ -225,29 +132,6 @@ export default function AdminSettings() {
           </div>
         </div>
 
-        <h2 className="text-xl font-bold text-white mb-6 pb-4 border-b border-slate-800">Change Password</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">New Password</label>
-            <input 
-              type="password" 
-              placeholder="Leave blank to keep current" 
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-[#090D14] rounded-xl border border-slate-700 outline-none focus:border-blue-500 focus:shadow-[0_0_10px_rgba(59,130,246,0.2)] transition text-sm text-white" 
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Confirm Password</label>
-            <input 
-              type="password" 
-              placeholder="Leave blank to keep current" 
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-[#090D14] rounded-xl border border-slate-700 outline-none focus:border-blue-500 focus:shadow-[0_0_10px_rgba(59,130,246,0.2)] transition text-sm text-white" 
-            />
-          </div>
-        </div>
       </div>
     )}
 
@@ -352,10 +236,10 @@ export default function AdminSettings() {
           <h3 className="font-bold text-red-400 drop-shadow-[0_0_5px_rgba(239,68,68,0.5)] mb-2">Danger Zone</h3>
           <p className="text-sm text-slate-400 mb-5">Actions here can affect the historical data and active state of the security grid.</p>
           <div className="flex flex-wrap gap-4">
-            <button className="bg-red-600/90 text-white font-bold py-2.5 px-5 rounded-lg text-sm hover:bg-red-500 transition shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+            <button onClick={() => { if (window.confirm('Clear all local alert records?')) { updateCollection('alerts', () => []); toast.success('Alert history cleared.'); } }} className="bg-red-600/90 text-white font-bold py-2.5 px-5 rounded-lg text-sm hover:bg-red-500 transition shadow-[0_0_15px_rgba(239,68,68,0.3)]">
               Clear Alert History
             </button>
-            <button className="bg-transparent text-red-400 border border-red-500/50 font-bold py-2.5 px-5 rounded-lg text-sm hover:bg-red-500/10 transition">
+            <button onClick={() => { if (window.confirm('Reset all local demo data?')) { resetData(); toast.success('Demo data restored.'); } }} className="bg-transparent text-red-400 border border-red-500/50 font-bold py-2.5 px-5 rounded-lg text-sm hover:bg-red-500/10 transition">
               Factory Reset Grid
             </button>
           </div>

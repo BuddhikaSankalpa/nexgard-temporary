@@ -1,18 +1,23 @@
-# React + Vite
+# Security Grid frontend demo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This project runs the admin dashboard as a standalone React frontend. No backend or login page is required.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+Open the local URL printed by Vite. The dashboard opens at `/admin`.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Demo data and clearance
 
-Note: This will impact Vite dev & build performances.
+The alert log starts with five sample Button Emergency entries: one pending and four resolved. Dashboard changes, alert status, employee records, personnel records, and settings are stored in this browser's local storage. Use **Settings → System Config → Factory Reset Grid** to restore the sample data.
 
-## Expanding the ESLint configuration
+The Security Personnel page has a frontend-only demo clearance screen. Use:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Email: `admin@gmail.com`
+- Password: `123`
+
+This screen is for demonstrating the requested interface. Because the check runs in the browser, it does not provide real access control.

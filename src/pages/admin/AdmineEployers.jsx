@@ -1,72 +1,35 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Link } from 'react-router-dom';
 import { MdBadge, MdOutlineLocationOn, MdPhoneIphone, MdEmail, MdContactPhone, MdContactEmergency } from "react-icons/md"; 
 // CHANGED: Added FaTrash for the delete button
 import { FaUserShield, FaUsers, FaUserPlus, FaTrash } from "react-icons/fa";
 import { IoAlertCircle, IoCheckmarkCircle } from "react-icons/io5"; 
-import { io } from 'socket.io-client'; 
-import Loader from "../../components/loader";
-
-const envUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api";
-const socketUrl = envUrl.replace(/\/api\/?$/, '');
+import { useDemoData } from '../../demoContext';
 
 export default function AdmineEployers() {
-  const [employees, setEmployees] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeAlerts, setActiveAlerts] = useState([]); 
+  const { employees, alerts, updateCollection } = useDemoData();
+  const activeAlerts = alerts.filter(alert => alert.status !== 'Resolved' && alert.type === 'Employee Emergency');
   
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', employeeId: '', email: '', phone: '', emergencyContactName: '', emergencyContactNumber: '' });
 
-  useEffect(() => {
-    async function fetchEmployees() {
-      try {
-        const response = await axios.get(`${envUrl}/employees`);
-        setEmployees(response.data);
-      } catch (err) {
-        toast.error("Failed to load employee records.");
-      } finally {
-        setIsLoading(false);
-      }
+  const resolveEmployeeAlert = (alertId) => {
+    updateCollection('alerts', previous => previous.map(alert => alert._id === alertId ? { ...alert, status: 'Resolved' } : alert));
+    toast.success("Employee Emergency Resolved!");
+  };
+
+  const submitNewEmployee = (event) => {
+    event.preventDefault();
+    if (employees.some(emp => emp.employeeId === newEmployee.employeeId || emp.email === newEmployee.email)) {
+      toast.error('Employee ID or email already exists.');
+      return;
     }
-
-    async function fetchPendingAlerts() {
-      try {
-        const response = await axios.get(`${envUrl}/alerts`);
-        setActiveAlerts(response.data.filter(a => a.status !== 'Resolved' && a.type === 'Employee Emergency'));
-      } catch (err) {
-        console.error("Failed to load alerts", err);
-      }
-    }
-
-    fetchEmployees();
-    fetchPendingAlerts();
-
-    const socket = io(socketUrl, { transports: ['websocket'] });
-
-    socket.on('new-emergency', (alertData) => {
-      if (alertData.type === 'Employee Emergency') {
-        setActiveAlerts((prev) => [...prev, alertData]);
-      }
-    });
-
-    socket.on('alert-resolved', (resolvedAlertId) => {
-      setActiveAlerts((prev) => prev.filter(alert => alert._id !== resolvedAlertId));
-    });
-
-    return () => socket.disconnect();
-  }, []);
-
-  const resolveEmployeeAlert = async (alertId) => {
-    try {
-      await axios.put(`${envUrl}/alerts/${alertId}/resolve`);
-      toast.success("Employee Emergency Resolved!");
-    } catch (err) {
-      console.log(err);
-      toast.error("Failed to resolve emergency.");
-    }
+    updateCollection('employees', previous => [...previous, { ...newEmployee, _id: crypto.randomUUID() }]);
+    setIsAddOpen(false);
+    setNewEmployee({ firstName: '', lastName: '', employeeId: '', email: '', phone: '', emergencyContactName: '', emergencyContactNumber: '' });
+    toast.success('Employer added successfully!');
   };
 
   const handleEditClick = (emp) => {
@@ -78,35 +41,20 @@ export default function AdmineEployers() {
     setEditForm({ ...editForm, [e.target.name]: e.target.value });
   };
 
-  const submitEdit = async (e) => {
+  const submitEdit = (e) => {
     e.preventDefault();
-    try {
-      const response = await axios.put(`${envUrl}/employees/${editForm._id}`, editForm);
-      toast.success("Profile Updated Successfully!");
-      
-      setEmployees(employees.map(emp => emp._id === editForm._id ? response.data.employee : emp));
-      setIsEditOpen(false);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to update profile.");
-    }
+    updateCollection('employees', previous => previous.map(emp => emp._id === editForm._id ? editForm : emp));
+    toast.success("Profile Updated Successfully!");
+    setIsEditOpen(false);
   };
 
   // --- NEW LOGIC FOR DELETE FUNCTIONALITY ---
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => {
     // Adding a confirmation dialog so you don't accidentally delete someone
     if (!window.confirm("Are you sure you want to delete this operator profile? This action cannot be undone.")) return;
     
-    try {
-      await axios.delete(`${envUrl}/employees/${id}`);
-      toast.success("Profile Deleted Successfully!");
-      
-      // Remove the deleted employee from the state to update the UI instantly
-      setEmployees(employees.filter(emp => emp._id !== id));
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete profile.");
-    }
+    updateCollection('employees', previous => previous.filter(emp => emp._id !== id));
+    toast.success("Profile Deleted Successfully!");
   };
 
   return (
@@ -126,13 +74,13 @@ export default function AdmineEployers() {
           </div>
           
           <div className="flex gap-3 w-full md:w-auto mt-4 md:mt-0">
-            <Link 
-              to="/employee-register" 
+            <button 
+              onClick={() => setIsAddOpen(true)}
               className="flex items-center gap-2 bg-blue-600/10 border border-blue-500/30 text-blue-400 hover:bg-blue-600 hover:text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.15)] hover:shadow-[0_0_25px_rgba(59,130,246,0.4)]"
             >
               <FaUserPlus size={18} />
               <span>Add Employer</span>
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -148,11 +96,9 @@ export default function AdmineEployers() {
             </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-20"><Loader /></div>
-        ) : employees.length === 0 ? (
+        {employees.length === 0 ? (
           <div className="text-center py-20 bg-[#111826]/50 rounded-3xl border border-dashed border-slate-800">
-            <p className="text-slate-500 font-bold uppercase tracking-widest">No Records Found in Database</p>
+            <p className="text-slate-500 font-bold uppercase tracking-widest">No Employer Records Found</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -244,7 +190,7 @@ export default function AdmineEployers() {
                        </button>
                     ) : (
                       <>
-                        <button className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition">View Logs</button>
+                        <button onClick={() => toast(`${alerts.filter(alert => alert.employeeId === emp._id).length} alert records for ${emp.firstName}`)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition">View Logs</button>
                         <button 
                           onClick={() => handleEditClick(emp)} 
                           className="px-4 py-1.5 rounded-lg text-xs font-bold bg-blue-600/10 text-blue-400 border border-blue-500/20 hover:bg-blue-600 hover:text-white transition"
@@ -267,6 +213,30 @@ export default function AdmineEployers() {
           </div>
         )}
       </div>
+
+      {isAddOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-[#111826] border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-[0_0_40px_rgba(0,0,0,0.8)] max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-white mb-5 flex items-center gap-2"><FaUserPlus className="text-blue-500" /> Add Employer</h2>
+            <form onSubmit={submitNewEmployee} className="space-y-4">
+              {[
+                ['firstName', 'First Name'], ['lastName', 'Last Name'], ['employeeId', 'Employee ID'],
+                ['email', 'Email Address'], ['phone', 'Phone Number'],
+                ['emergencyContactName', 'ICE Name'], ['emergencyContactNumber', 'ICE Number'],
+              ].map(([name, label]) => (
+                <div key={name}>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</label>
+                  <input type={name === 'email' ? 'email' : 'text'} value={newEmployee[name]} onChange={event => setNewEmployee(previous => ({ ...previous, [name]: event.target.value }))} className="w-full bg-[#090D14] border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:border-blue-500 outline-none transition" required />
+                </div>
+              ))}
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setIsAddOpen(false)} className="px-5 py-2.5 rounded-lg text-sm font-bold text-slate-400 bg-slate-800 border border-slate-700">Cancel</button>
+                <button type="submit" className="px-5 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-500">Add Employer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {isEditOpen && editForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">

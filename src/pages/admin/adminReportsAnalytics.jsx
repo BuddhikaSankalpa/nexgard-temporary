@@ -1,13 +1,26 @@
-import React from 'react';
+import { useState } from 'react';
 import { IoDocumentText } from "react-icons/io5";
 import { FaFilePdf, FaChartLine, FaBolt } from "react-icons/fa";
+import { useDemoData } from '../../demoContext';
+import { downloadReportPdf } from '../../reportPdf';
 
 export default function AdminReportsAnalytics() {
-  const reports = [
+  const [reports, setReports] = useState([
     { title: "Efficiency Analysis Report", date: "Oct 15, 2026", type: "Analytics", size: "1.2 MB" },
     { title: "System Power Consumption", date: "Oct 14, 2026", type: "Power Analysis", size: "850 KB" },
     { title: "System User Manual v1.0", date: "Oct 01, 2026", type: "Documentation", size: "3.5 MB" },
-  ];
+  ]);
+  const { employees, personnel, alerts, sensors } = useDemoData();
+
+  const reportLines = type => type === 'Power Analysis'
+    ? ['Frontend demonstration report', `Monitored devices: ${sensors.length}`, `Online devices: ${sensors.filter(sensor => sensor.status === 'Online').length}`, 'Estimated power consumption is unavailable without hardware telemetry.']
+    : ['Frontend demonstration report', `Employees: ${employees.length}`, `Security personnel: ${personnel.length}`, `Recorded alerts: ${alerts.length}`, `Resolved alerts: ${alerts.filter(alert => alert.status === 'Resolved').length}`];
+
+  const generateReport = (type) => {
+    const title = type === 'Power Analysis' ? 'System Power Consumption' : 'Efficiency Analysis Report';
+    setReports(previous => [{ title, date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }), type, size: 'Generated' }, ...previous]);
+    downloadReportPdf(title, reportLines(type));
+  };
 
   return (
     <div className="p-8 w-full min-h-screen bg-[#090D14] text-slate-300 relative overflow-hidden font-sans">
@@ -31,7 +44,7 @@ export default function AdminReportsAnalytics() {
             <FaChartLine size={32} className="mb-4 text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.6)] group-hover:scale-110 transition-transform" />
             <h3 className="text-xl font-bold text-white">Efficiency Analysis</h3>
             <p className="text-sm text-slate-400 mt-2 mb-5">Evaluate event detection accuracy and false alarms.</p>
-            <button className="bg-blue-500/10 text-blue-400 border border-blue-500/30 font-bold px-5 py-2.5 rounded-lg hover:bg-blue-500/20 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] transition duration-300 text-sm tracking-wide">
+            <button onClick={() => generateReport('Analytics')} className="bg-blue-500/10 text-blue-400 border border-blue-500/30 font-bold px-5 py-2.5 rounded-lg hover:bg-blue-500/20 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] transition duration-300 text-sm tracking-wide">
               GENERATE NEW REPORT
             </button>
           </div>
@@ -41,7 +54,7 @@ export default function AdminReportsAnalytics() {
             <FaBolt size={32} className="mb-4 text-teal-400 drop-shadow-[0_0_8px_rgba(45,212,191,0.6)] group-hover:scale-110 transition-transform" />
             <h3 className="text-xl font-bold text-white">Power Analysis</h3>
             <p className="text-sm text-slate-400 mt-2 mb-5">Calculate energy consumption under normal/peak usage.</p>
-            <button className="bg-teal-500/10 text-teal-400 border border-teal-500/30 font-bold px-5 py-2.5 rounded-lg hover:bg-teal-500/20 hover:shadow-[0_0_15px_rgba(20,184,166,0.3)] transition duration-300 text-sm tracking-wide">
+            <button onClick={() => generateReport('Power Analysis')} className="bg-teal-500/10 text-teal-400 border border-teal-500/30 font-bold px-5 py-2.5 rounded-lg hover:bg-teal-500/20 hover:shadow-[0_0_15px_rgba(20,184,166,0.3)] transition duration-300 text-sm tracking-wide">
               GENERATE NEW REPORT
             </button>
           </div>
@@ -65,7 +78,7 @@ export default function AdminReportsAnalytics() {
                     <p className="text-xs text-slate-500 mt-0.5">{report.type} • {report.date}</p>
                   </div>
                 </div>
-                <button className="text-indigo-400 font-bold text-sm hover:text-indigo-300 hover:drop-shadow-[0_0_5px_rgba(129,140,248,0.6)] transition">
+                <button onClick={() => downloadReportPdf(report.title, report.type === 'Documentation' ? ['Security Grid frontend demonstration', 'Use the dashboard navigation to open all admin sections.', 'Demo data is stored in this browser.'] : reportLines(report.type))} className="text-indigo-400 font-bold text-sm hover:text-indigo-300 hover:drop-shadow-[0_0_5px_rgba(129,140,248,0.6)] transition">
                   Download PDF
                 </button>
               </div>

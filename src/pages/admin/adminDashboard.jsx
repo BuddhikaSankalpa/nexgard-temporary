@@ -1,113 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState } from 'react';
 import { MdSensors, MdCheckCircle, MdOutlineEmergencyShare, MdOutlineRoom, MdClose, MdVolumeUp, MdVolumeOff } from "react-icons/md";
 import { IoAlertCircle, IoWarning } from "react-icons/io5";
 import { FaUserShield, FaFireExtinguisher, FaUsers, FaPhoneAlt } from "react-icons/fa";
 import { TbHandClick } from "react-icons/tb";
-import { io } from 'socket.io-client';
 import { toast } from 'react-hot-toast';
-
-const envUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api";
-const socketUrl = envUrl.replace(/\/api\/?$/, ''); 
+import { useDemoData } from '../../demoContext';
 
 export default function AdminDashboard() {
   const [selectedFlow, setSelectedFlow] = useState(null);
-  const [activeAlerts, setActiveAlerts] = useState([]); 
-  const [isMuted, setIsMuted] = useState(localStorage.getItem('systemMuted') === 'true'); 
-  
-  // States for fetching database metrics
-  const [employees, setEmployees] = useState([]);
-  const [person, setPerson] = useState(null);
+  const { alerts, employees, personnel, settings, updateSettings, updateCollection } = useDemoData();
+  const activeAlerts = alerts.filter(alert => alert.status !== 'Resolved');
+  const person = personnel.find(user => !user.isBlocked) || personnel[0];
+  const isMuted = settings.systemMuted;
 
   const closeModal = () => setSelectedFlow(null);
 
-  useEffect(() => {
-    const fetchPendingAlerts = async () => {
-        try {
-            const response = await axios.get(`${envUrl}/alerts`);
-            setActiveAlerts(response.data.filter(a => a.status !== 'Resolved'));
-        } catch (err) {
-            console.error("Failed to load initial alerts", err);
-        }
-    };
-    
-    // Fetch Employees & Security Personnel from DB
-    const fetchDashboardMetrics = async () => {
-        try {
-            const [empRes, usersRes] = await Promise.all([
-                axios.get(`${envUrl}/employees`),
-                axios.get(`${envUrl}/users/all`) // Fetch all system users
-            ]);
-            
-            setEmployees(empRes.data);
-            
-            // 1. Get the token from localStorage
-            const token = localStorage.getItem('token');
-            let loggedInUser = null;
-
-            if (token) {
-              try {
-                const base64Url = token.split('.')[1];
-                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-                }).join(''));
-                const payload = JSON.parse(jsonPayload);
-
-                loggedInUser = usersRes.data.find(u => u._id === payload.id || u.email === payload.email);
-              } catch (error) {
-                console.error("Error decoding token:", error);
-              }
-            }
-
-            // 2. Fallback check 
-            if (!loggedInUser) {
-              const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-              if (storedUser && storedUser.email) {
-                loggedInUser = usersRes.data.find(u => u.email === storedUser.email);
-              }
-            }
-
-            // 3. Set the active person
-            if (loggedInUser) {
-                setPerson(loggedInUser);
-            } else {
-                const activeOfficers = usersRes.data.filter(u => !u.isBlocked);
-                if (activeOfficers.length > 0) {
-                    setPerson(activeOfficers[0]); 
-                }
-            }
-
-        } catch (err) {
-            console.error("Failed to load dashboard metrics", err);
-        }
-    };
-
-    fetchPendingAlerts();
-    fetchDashboardMetrics();
-
-    const socket = io(socketUrl, { transports: ['websocket'] });
-
-    socket.on('new-emergency', (alertData) => {
-      toast.error(`EMERGENCY: ${alertData.type || 'Unknown'} at ${alertData.location || 'Unknown Location'}`, {
-        duration: 8000,
-        position: 'top-right',
-      });
-      setActiveAlerts((prev) => [...prev, alertData]);
-    });
-
-    socket.on('alert-resolved', (resolvedAlertId) => {
-        setActiveAlerts((prev) => prev.filter(alert => alert._id !== resolvedAlertId));
-    });
-
-    return () => socket.disconnect();
-  }, []); 
-
   const toggleMute = () => {
-    const newMutedState = !isMuted;
-    setIsMuted(newMutedState);
-    localStorage.setItem('systemMuted', newMutedState);
-    window.dispatchEvent(new Event('mute-toggled')); 
+    updateSettings({ systemMuted: !isMuted });
+  };
+
+  const addDemoAlert = (type) => {
+    if (activeAlerts.some(alert => alert.type === type)) return;
+    const alert = {
+      _id: crypto.randomUUID(), type, status: 'Pending',
+      location: type === 'Employee Emergency' ? 'Flow 01 - Room 01' : type === 'Fire Emergency' ? 'Flow 02 - Room 03' : 'Flow 04 - Room 02',
+      employeeId: type === 'Employee Emergency' ? employees[0]?._id : undefined,
+      description: 'Frontend demonstration alert', createdAt: new Date().toISOString(),
+    };
+    updateCollection('alerts', previous => [alert, ...previous]);
+    toast.error(`${type} demo alert created`);
   };
 
   // Function to handle copying emergency numbers
@@ -351,7 +272,7 @@ export default function AdminDashboard() {
               <div className="p-6 space-y-4 flex-1 flex flex-col justify-center">
                 
                 {/* Employee Emergency Card */}
-                <div className={`w-full py-4 px-4 rounded-xl transition-all flex flex-col group uppercase tracking-wide border shadow-[0_0_15px_rgba(249,115,22,0.05)] ${
+                <div onClick={() => addDemoAlert('Employee Emergency')} className={`w-full py-4 px-4 rounded-xl transition-all flex flex-col group uppercase tracking-wide border shadow-[0_0_15px_rgba(249,115,22,0.05)] ${
                     empAlert
                     ? 'bg-red-600 text-white border-red-400 shadow-[0_0_30px_rgba(239,68,68,0.8)]'
                     : 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500/50 cursor-pointer'
@@ -375,7 +296,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Fire Emergency Card */}
-                <div className={`w-full py-4 px-4 rounded-xl transition-all flex flex-col group uppercase tracking-wide border shadow-[0_0_15px_rgba(239,68,68,0.05)] ${
+                <div onClick={() => addDemoAlert('Fire Emergency')} className={`w-full py-4 px-4 rounded-xl transition-all flex flex-col group uppercase tracking-wide border shadow-[0_0_15px_rgba(239,68,68,0.05)] ${
                     fireAlert
                     ? 'bg-red-600 text-white border-red-400 shadow-[0_0_30px_rgba(239,68,68,0.8)]'
                     : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 cursor-pointer'
@@ -399,7 +320,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Button Emergency Card */}
-                <div className={`w-full py-4 px-4 rounded-xl transition-all flex flex-col group uppercase tracking-wide mt-2 border shadow-[0_0_20px_rgba(239,68,68,0.3)] ${
+                <div onClick={() => addDemoAlert('Button Emergency')} className={`w-full py-4 px-4 rounded-xl transition-all flex flex-col group uppercase tracking-wide mt-2 border shadow-[0_0_20px_rgba(239,68,68,0.3)] ${
                     btnAlert
                     ? 'bg-red-600 text-white border-red-400 shadow-[0_0_30px_rgba(239,68,68,0.8)]'
                     : 'bg-gradient-to-r from-red-600 to-red-800 text-white hover:from-red-500 hover:to-red-700 border-red-500 cursor-pointer'
